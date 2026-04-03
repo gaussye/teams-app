@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "teamsagent"
+    },
+    "containerImage": {
+      "value": "<acr-login-server>/teams-agent:latest"
+    },
+    "botAppId": {
+      "value": "<bot-app-id>"
+    },
+    "botAppPassword": {
+      "value": "<bot-app-password>"
+    },
+    "foundryEndpoint": {
+      "value": "https://<foundry-endpoint>/openai/v1"
+    },
+    "foundryModelId": {
+      "value": "<model-id>"
+    },
+    "foundryApiKey": {
+      "value": "<foundry-api-key>"
+    }
+  }
+}

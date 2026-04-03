@@ -1,0 +1,58 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "d0b8c34d-9fbe-4fd3-85a1-100000000001",
+  "packageName": "com.example.teamsagent",
+  "developer": {
+    "name": "Your Company",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "Teams Agent",
+    "full": "Teams Agent Bot"
+  },
+  "description": {
+    "short": "Teams bot backed by Azure Container Apps and Foundry",
+    "full": "A Teams bot that sends user prompts to a Python agent running on Azure Container Apps and receives generated responses from an Azure AI Foundry model."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#0B5CAB",
+  "bots": [
+    {
+      "botId": "82dd4611-3ee2-489a-8679-ce1a39b895bd",
+      "scopes": [
+        "personal",
+        "team",
+        "groupchat"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "personal",
+            "team",
+            "groupchat"
+          ],
+          "commands": [
+            {
+              "title": "help",
+              "description": "Show help message"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": []
+}
