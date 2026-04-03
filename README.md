@@ -229,3 +229,17 @@ python src/app.py
 - Bot Service 与 Container App 必须使用同一个 `BOT_APP_ID`（以及对应租户和凭据）。
 - `Single Tenant` 模式下，`BOT_APP_TENANT_ID` 必须与 Bot 资源的 tenant 一致。
 - Token 校验入口在 `src/app.py` 的 `process_activity` 调用。
+
+## 9. Teams 测试页面结果
+
+根据测试页面会话截图，当前 Teams 端验证结果如下：
+
+- Bot 能在个人聊天窗口正常接收并回复消息。
+- 输入 `hello` 后，Bot 返回欢迎语，说明消息通道可用。
+- 输入模型相关问题后，Bot 返回完整文本响应，说明 Bot -> Container App -> Agent 调用链可用。
+
+建议继续执行以下回归测试：
+
+- 在 `personal`、`groupchat`、`team` 三种 scope 分别发送消息。
+- 连续多轮提问，观察是否出现超时或无响应。
+- 结合 `az containerapp logs show` 检查 `Foundry response received` 日志是否持续输出。
