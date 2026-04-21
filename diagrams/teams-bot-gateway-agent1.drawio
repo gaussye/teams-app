@@ -1,0 +1,67 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36">
+  <diagram id="teams-flow" name="Page-1">
+    <mxGraphModel dx="1414" dy="841" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cROQ9w9BDkFnF8OPRcaz-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;" value="Azure" vertex="1">
+          <mxGeometry height="220" width="690" x="40" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" value="Teams App" vertex="1">
+          <mxGeometry height="80" width="90" x="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" value="Azure Bot Service" vertex="1">
+          <mxGeometry height="80" width="100" x="214" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="cROQ9w9BDkFnF8OPRcaz-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;" value="On premise" vertex="1">
+          <mxGeometry height="220" width="220" x="940" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" value="Agent App&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="140" x="990" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="10" edge="1" parent="1" source="2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="3" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" source="oAOjbGq0H5Zv8JgsFeqK-14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;exitX=0.867;exitY=0.538;exitDx=0;exitDy=0;exitPerimeter=0;" target="5" value="/api/messages (through VPN)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="970" y="180" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" value="AzureFront Door" vertex="1">
+          <mxGeometry height="80" width="80" x="376" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" value="Customized proxy in Web App/Container APP" vertex="1">
+          <mxGeometry height="80" width="120" x="567" y="141" as="geometry" />
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;dashPattern=12 12;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" value="Vnet" vertex="1">
+          <mxGeometry height="130" width="170" x="540" y="111" as="geometry" />
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-15" edge="1" parent="1" source="oAOjbGq0H5Zv8JgsFeqK-14" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.988;exitY=0.108;exitDx=0;exitDy=0;exitPerimeter=0;" target="cROQ9w9BDkFnF8OPRcaz-13" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="670" y="110" as="sourcePoint" />
+            <mxPoint x="720" y="60" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-16" connectable="0" parent="oAOjbGq0H5Zv8JgsFeqK-15" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="VPN connection" vertex="1">
+          <mxGeometry relative="1" x="-0.1627" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-17" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="oAOjbGq0H5Zv8JgsFeqK-12" value="HTTPS">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="330" y="210" as="sourcePoint" />
+            <mxPoint x="396" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oAOjbGq0H5Zv8JgsFeqK-18" edge="1" parent="1" source="oAOjbGq0H5Zv8JgsFeqK-12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="oAOjbGq0H5Zv8JgsFeqK-13" value="HTTPS through&amp;nbsp;&lt;div&gt;Azure backbone&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points" />
+            <mxPoint x="490" y="180" as="sourcePoint" />
+            <mxPoint x="542" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
