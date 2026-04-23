@@ -21,13 +21,13 @@
 
 ```mermaid
 flowchart LR
-    U[Teams User] --> T[Microsoft Teams]
-    T --> B[Azure Bot Service]
-    B --> D[Azure Front Door]
-    D --> P[Azure Web App Proxy\nteamsagent-proxy-web]
-    P --> V[VM Bot Service\n172.16.250.4:3978]
-    V --> G[Python Bot + Agent]
-    G --> F[Azure AI Foundry]
+  U[Teams User] -->|Public| T[Microsoft Teams]
+  T -->|Public| B[Azure Bot Service]
+  B -->|Public| D[Azure Front Door]
+  D -->|Public| P[Azure Web App Proxy\nteamsagent-proxy-web]
+  P -->|Private| V[VM Bot Service\n172.16.250.4:3978]
+  V -->|Private| G[Python Bot + Agent]
+  G -->|Private| F[Azure AI Foundry]
 
     subgraph Security
       S1[Main site allow: AzureFrontDoor.Backend + x-azure-fdid]
@@ -39,6 +39,13 @@ flowchart LR
     S1 --> P
     S2 --> P
     S3 --> P
+
+    classDef publicNode fill:#e8f4ff,stroke:#2563eb,stroke-width:2px,color:#0f172a;
+    classDef privateNode fill:#ecfdf3,stroke:#15803d,stroke-width:2px,color:#0f172a;
+    classDef securityNode fill:#fff7ed,stroke:#c2410c,stroke-width:1.5px,color:#0f172a;
+    class U,T,B,D,P publicNode;
+    class V,G,F privateNode;
+    class S1,S2,S3 securityNode;
 ```
 
 ### 1.1 关键组件
@@ -53,30 +60,39 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
+  box rgb(232, 244, 255) Public Network
     participant User as Teams User
     participant Teams as Teams
     participant BotSvc as Azure Bot Service
     participant AFD as Azure Front Door
     participant Proxy as Web App Proxy
-    participant VM as VM Bot /api/messages
-    participant Agent as FoundryAgent
-    participant Foundry as Azure AI Foundry
+  end
 
-    User->>Teams: 发送消息
-    Teams->>BotSvc: Channel Activity
-    BotSvc->>AFD: POST /api/messages
-    AFD->>Proxy: 回源到 proxy
-    Proxy->>VM: 转发请求（保留 Authorization）
-    VM->>Agent: generate_reply(text)
-    Agent->>Foundry: Chat Completions (Entra token)
-    Foundry-->>Agent: 模型响应
-    Agent-->>VM: reply text
-    VM-->>Proxy: 200/201
-    Proxy-->>AFD: 200/201
-    AFD-->>BotSvc: 200/201
-    BotSvc-->>Teams: 下行消息
-    Teams-->>User: 展示回复
+  box rgb(236, 253, 243) Private Network
+    participant AgentSvc as Agent Service\n(/api/messages + Foundry Agent)
+    participant Foundry as Azure AI Foundry
+  end
+
+  User->>Teams: [Public] 发送消息
+  Teams->>BotSvc: [Public] Channel Activity
+  BotSvc->>AFD: [Public] POST /api/messages
+  AFD->>Proxy: [Public] 回源到 proxy
+  Proxy->>AgentSvc: [Private] 转发请求（保留 Authorization）
+  AgentSvc->>Foundry: [Private] Chat Completions (Entra token)
+  Foundry-->>AgentSvc: [Private] 模型响应
+  AgentSvc-->>Proxy: [Private] 200/201
+  Proxy-->>AFD: [Public] 200/201
+  AFD-->>BotSvc: [Public] 200/201
+  BotSvc-->>Teams: [Public] 下行消息
+  Teams-->>User: [Public] 展示回复
 ```
+
+### 2.1 图例（Legend）
+
+- 蓝色区域/节点：公网流量路径（Public Network）。
+- 绿色区域/节点：私有网络流量路径（Private Network）。
+- 橙色节点：安全控制点（AFD 回源限制与拒绝策略）。
+- 连线或消息中的 `[Public]` / `[Private]`：该次调用所属网络路径。
 
 ## 3. 安全策略（已验证）
 
