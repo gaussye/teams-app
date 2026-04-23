@@ -1,245 +1,167 @@
 # Teams Agent App (Python + Azure)
 
-本项目实现一个可部署到 Microsoft Teams 的对话应用，满足以下目标：
+本项目实现 Microsoft Teams 对话应用，并在 Azure 上采用 AFD + Proxy + 私网后端的生产链路。
 
-1. 可安装到 Teams。
-2. 通过 Azure Bot Service 对接 Teams。
-3. Azure Bot Service 消息端点指向 Azure Container Apps。
-4. Container App 中运行 Python Agent，调用 Azure AI Foundry 模型。
-5. Foundry 模型 ID 与 API Key 通过环境变量注入。
+## 0. 当前状态（已更新到最新设计）
 
-## 1. 架构设计
+截至 2026-04-22，当前生效设计为：
 
-### 1.1 组件说明
+1. Teams -> Azure Bot Service（公网入口，固定 `/api/messages`）。
+2. Azure Bot Service -> Azure Front Door（AFD）。
+3. AFD -> Azure Web App Proxy（`teamsagent-proxy-web`）。
+4. Proxy -> VM 私网 Bot 服务（`http://172.16.250.4:3978`）。
+5. VM 内 Bot/Agent -> Azure AI Foundry（Managed Identity / Entra token）。
 
-- Teams Client
-  - 用户发送消息并接收回复。
-- Teams App Manifest
-  - 定义 Bot 能力并绑定 Azure Bot ID。
-- Azure Bot Service
-  - 负责 Teams Channel 接入和消息转发。
-- Azure Container Apps
-  - 暴露 `/api/messages` webhook，承载 Python Bot + Agent 服务。
-- Python Bot (Bot Framework)
-  - 接收活动消息，调用 Agent，回写响应。
-- Python Agent (Foundry)
-  - 使用 Foundry Endpoint + Model ID + API Key 生成回答。
+说明：
 
-### 1.2 总体架构图
+- 当前已从“Proxy 回源 Container App 私网地址”的不稳定路径切回 VM 私网路径。
+- Foundry 认证以 Managed Identity 为主，不再依赖 API Key。
+
+## 1. 架构图（最新）
 
 ```mermaid
 flowchart LR
     U[Teams User] --> T[Microsoft Teams]
     T --> B[Azure Bot Service]
-    B --> C[Azure Container Apps\n/api/messages]
-    C --> P[Python Bot Handler]
-    P --> A[Python Agent Layer]
-    A --> F[Azure AI Foundry Model]
-    F --> A
-    A --> P
-    P --> C
-    C --> B
-    B --> T
+    B --> D[Azure Front Door]
+    D --> P[Azure Web App Proxy\nteamsagent-proxy-web]
+    P --> V[VM Bot Service\n172.16.250.4:3978]
+    V --> G[Python Bot + Agent]
+    G --> F[Azure AI Foundry]
+
+    subgraph Security
+      S1[Main site allow: AzureFrontDoor.Backend + x-azure-fdid]
+      S2[Main site deny-all]
+      S3[SCM site deny-all]
+    end
+
+    D -. origin access .-> S1
+    S1 --> P
+    S2 --> P
+    S3 --> P
 ```
 
-## 2. 调用逻辑
+### 1.1 关键组件
 
-### 2.1 时序流程
+- Teams / Bot Service：消息通道与 Bot Framework 入口。
+- AFD：统一外部入口与回源控制。
+- Web App Proxy：仅转发 `/api/messages` 与 `/healthz`，不承载业务推理。
+- VM Bot Service：承载 Python Bot + Agent 主逻辑。
+- Azure AI Foundry：模型推理，使用 Entra token（MI）鉴权。
+
+## 2. 流程图（消息链路）
 
 ```mermaid
 sequenceDiagram
     participant User as Teams User
     participant Teams as Teams
     participant BotSvc as Azure Bot Service
-    participant App as Container App /api/messages
-    participant Bot as Python Bot
-    participant Agent as Python Agent
+    participant AFD as Azure Front Door
+    participant Proxy as Web App Proxy
+    participant VM as VM Bot /api/messages
+    participant Agent as FoundryAgent
     participant Foundry as Azure AI Foundry
 
     User->>Teams: 发送消息
-    Teams->>BotSvc: Channel 消息
-    BotSvc->>App: HTTP POST Activity
-    App->>Bot: 解析 Activity
-    Bot->>Agent: generate_reply(user_text)
-    Agent->>Foundry: Chat Completion
-    Foundry-->>Agent: model response
-    Agent-->>Bot: reply text
-    Bot-->>App: Activity Response
-    App-->>BotSvc: 200 OK
+    Teams->>BotSvc: Channel Activity
+    BotSvc->>AFD: POST /api/messages
+    AFD->>Proxy: 回源到 proxy
+    Proxy->>VM: 转发请求（保留 Authorization）
+    VM->>Agent: generate_reply(text)
+    Agent->>Foundry: Chat Completions (Entra token)
+    Foundry-->>Agent: 模型响应
+    Agent-->>VM: reply text
+    VM-->>Proxy: 200/201
+    Proxy-->>AFD: 200/201
+    AFD-->>BotSvc: 200/201
     BotSvc-->>Teams: 下行消息
     Teams-->>User: 展示回复
 ```
 
-### 2.2 关键约束
+## 3. 安全策略（已验证）
 
-- Bot 消息入口固定为 `/api/messages`。
-- Bot App ID / Password 必须与 Azure Bot Service 保持一致。
-- Foundry 的 Endpoint、Model ID、API Key 全部来源于环境变量。
-- Container App 需要公网入口，且 target port 为 `3978`。
+当前 `teamsagent-proxy-web` 已确认生效的访问限制：
 
-## 3. 代码结构
+1. 主站独立规则（`scmIpSecurityRestrictionsUseMain=false`）。
+2. 主站 Allow 规则：`allow-afd-backend-fdid`。
+   - `service-tag=AzureFrontDoor.Backend`
+   - Header 约束：`x-azure-fdid=<frontDoorId GUID>`
+   - `priority=100`
+3. 主站 Deny-All：`deny-all-main`，`priority=2147483647`。
+4. SCM Deny-All：`deny-all-scm`，`priority=2147483647`。
 
-```text
-teams-app/
-  README.md
-  requirement.txt
-  requirements.txt
-  Dockerfile
-  .env.example
-  src/
-    app.py
-    bot.py
-    config.py
-    agent/
-      foundry_agent.py
-  teams/
-    manifest.json
-    color.png
-    outline.png
-  infra/
-    main.bicep
-    main.parameters.json
-  scripts/
-    deploy.ps1
-    start_local.ps1
-```
+这保证了 Proxy 主站仅允许来自指定 AFD 实例的回源访问，且 SCM 管理面默认拒绝。
 
-## 4. 本地运行
+## 4. 关键配置
 
-### 4.1 准备环境
+### 4.1 应用配置（Bot/Agent）
 
-- Python 3.11+
-- Azure CLI
-- 已创建 Azure AD App（用于 Bot App ID / Password）
+见 `.env.example`：
 
-### 4.2 安装依赖
+- `FOUNDRY_AUTH_MODE=entra`
+- `FOUNDRY_API_VERSION=2024-10-21`
+- `FOUNDRY_ENTRA_SCOPE=https://cognitiveservices.azure.com/.default`
+- `FOUNDRY_MANAGED_IDENTITY_CLIENT_ID`（仅用户分配身份时填写）
+
+代码参考：
+
+- `src/config.py`：认证模式与必填项校验。
+- `src/agent/foundry_agent.py`：`DefaultAzureCredential` + `AsyncAzureOpenAI`。
+- `src/app.py`：Bot Adapter 与 `/api/messages` 入口。
+
+### 4.2 Proxy 配置
+
+Proxy 关键环境变量：
+
+- `PROXY_UPSTREAM_BASE_URL=http://172.16.250.4:3978`
+- `PROXY_UPSTREAM_HOST_HEADER=`（VM 模式通常留空）
+- `PROXY_TIMEOUT_SECONDS=120`
+
+代码参考：`src/proxy_app.py`。
+
+## 5. 本地运行
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### 4.3 配置环境变量
-
-复制 `.env.example` 为 `.env` 并填写：
-
-- `BOT_APP_ID`
-- `BOT_APP_PASSWORD`
-- `FOUNDRY_ENDPOINT`
-- `FOUNDRY_MODEL_ID`
-- `FOUNDRY_API_KEY`
-- `SYSTEM_PROMPT` (可选)
-
-### 4.4 启动服务
-
-```powershell
 python src/app.py
 ```
 
-服务监听：`http://localhost:3978/api/messages`
+本地入口：`http://localhost:3978/api/messages`
 
-## 5. 生成云资源与部署
+## 6. Teams 安装
 
-本项目同时提供两种方式：
+1. 编辑 `teams/manifest.json`，填入真实 `botId`。
+2. 打包 `manifest.json`、`color.png`、`outline.png` 为 zip。
+3. 在 Teams 上传自定义应用并安装测试。
 
-1. `infra/main.bicep`：基础资源定义（Container App + Log Analytics + Bot Service）。
-2. `scripts/deploy.ps1`：一键部署脚本（推荐，包含镜像构建和 Bot endpoint 自动绑定）。
+## 7. 最新测试与验证结果
 
-### 5.1 一键部署（推荐）
+### 7.1 功能验证
 
-```powershell
-./scripts/deploy.ps1 \
-  -SubscriptionId "<sub-id>" \
-  -ResourceGroup "rg-teams-agent" \
-  -Location "eastus" \
-  -NamePrefix "teamsagent" \
-  -BotAppId "<bot-app-id>" \
-  -BotTenantId "<tenant-id>" \
-  -BotAppPassword "<bot-app-password>" \
-  -FoundryEndpoint "https://<foundry-endpoint>/openai/v1" \
-  -FoundryModelId "<model-id>" \
-  -FoundryApiKey "<foundry-api-key>"
-```
+- Teams 实际会话已恢复可用（用户确认“已经通了”）。
+- Proxy `/healthz` 可正常响应。
+- `/api/messages` 链路可完成 Bot 收发与模型回复。
 
-脚本会完成：
+### 7.2 安全验证
 
-- 创建资源组
-- 创建 ACR
-- 构建并推送镜像
-- 创建 Log Analytics + Container Apps Environment
-- 创建 Container App 并注入环境变量
-- 创建 Azure Bot Service，endpoint 指向 Container App
-- 开启 Teams Channel
+- 已复核 AFD-only 回源规则、主站 deny-all、SCM deny-all 全部存在。
+- `x-azure-fdid` 绑定值已与 AFD 实例匹配。
 
-## 6. Teams 应用安装
+### 7.3 运行与日志验证
 
-1. 打开 `teams/manifest.json`。
-2. 将 `botId` 从 `00000000-0000-0000-0000-000000000000` 替换为真实 Bot App ID。
-3. 准备 192x192 `color.png` 和 32x32 `outline.png` 图标。
-4. 将 `manifest.json`、`color.png`、`outline.png` 打包为 zip。
-5. Teams -> Apps -> Manage your apps -> Upload a custom app。
+- Proxy 日志可见转发目标与上游响应状态。
+- VM 身份与 Foundry RBAC 已完成修复，Managed Identity 路径可用。
 
-## 7. 生产建议
+## 8. 运行建议（生产）
 
-- 将 `BOT_APP_PASSWORD`、`FOUNDRY_API_KEY` 存储到 Azure Key Vault，再通过 Container Apps Secret 引用。
-- 为 Container App 配置最小副本和自动扩缩容策略。
-- 为 Agent 增加会话历史、审计日志和提示词安全策略。
-- 开启 Application Insights 与分布式追踪。
+1. 保持 Bot Service 公开入口，但限制 Proxy 仅允许 AFD 指定实例回源。
+2. 保持 Foundry 使用 MI + RBAC，避免回退到 API Key。
+3. 为 Proxy 与 VM 应用保留健康探针和结构化日志。
+4. 若后续启用 AFD Private Link Origin，可进一步收敛回源面。
 
-## 8. 常见问题（认证与网络）
+## 9. 已知事项
 
-### 8.1 创建 Bot 时 Type of App 选项有什么区别
-
-- `Single Tenant`
-  - 使用 Entra 应用注册（App ID + Secret/证书）。
-  - 仅允许本租户使用。
-  - 兼容性高，适合当前 Python Bot Framework 方案。
-- `User-Assigned Managed Identity`
-  - 使用 Azure 托管身份，减少 Secret 管理。
-  - 适合希望减少凭据维护的场景，但 Bot Framework Python 方案改造成本较高。
-
-### 8.2 配置片段里的参数分别从哪里来
-
-以下参数与本项目环境变量/配置映射：
-
-- `appId` -> `BOT_APP_ID`
-  - 来源：Entra 应用注册的 Application (client) ID。
-  - 参考：`src/config.py`。
-- `appPassword` -> `BOT_APP_PASSWORD`
-  - 来源：Entra 应用注册的 Client Secret。
-  - 参考：`src/config.py`、`scripts/deploy.ps1`。
-- `tenantId` -> `BOT_APP_TENANT_ID`
-  - 来源：Entra 的 Directory (tenant) ID。
-  - 参考：`src/config.py`、`src/app.py`。
-- `webhook.port` / `webhook.path`
-  - 本项目固定为 `3978` 和 `/api/messages`。
-  - 参考：`src/app.py`。
-
-### 8.3 Bot Service 与 Container App 如何认证
-
-调用链路：
-
-1. Teams -> Azure Bot Service。
-2. Azure Bot Service -> Container App 的 `/api/messages`。
-3. Container App 在 `adapter.process_activity(...)` 中校验 `Authorization: Bearer <token>`。
-
-关键点：
-
-- Bot Service 与 Container App 必须使用同一个 `BOT_APP_ID`（以及对应租户和凭据）。
-- `Single Tenant` 模式下，`BOT_APP_TENANT_ID` 必须与 Bot 资源的 tenant 一致。
-- Token 校验入口在 `src/app.py` 的 `process_activity` 调用。
-
-## 9. Teams 测试页面结果
-
-根据测试页面会话截图，当前 Teams 端验证结果如下：
-
-- Bot 能在个人聊天窗口正常接收并回复消息。
-- 输入 `hello` 后，Bot 返回欢迎语，说明消息通道可用。
-- 输入模型相关问题后，Bot 返回完整文本响应，说明 Bot -> Container App -> Agent 调用链可用。
-
-建议继续执行以下回归测试：
-
-- 在 `personal`、`groupchat`、`team` 三种 scope 分别发送消息。
-- 连续多轮提问，观察是否出现超时或无响应。
-- 结合 `az containerapp logs show` 检查 `Foundry response received` 日志是否持续输出。
+- 目标资源组中当前仅确认 `teamsagent-proxy-web` 已完成并验证规则。
+- `teamsagentafd-proxy-web` 在当前目标资源组查询为 ResourceNotFound，如需同策略加固请先确认其实际资源组/订阅。
