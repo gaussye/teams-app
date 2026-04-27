@@ -6,25 +6,20 @@ param location string = resourceGroup().location
 @description('Resource name prefix')
 param namePrefix string = 'teamsagent'
 
-@description('Container image in ACR')
-param containerImage string
+@description('App Service plan name for the proxy Web App')
+param appServicePlanName string = '${namePrefix}-asp'
 
-@description('Bot application ID (Azure AD app id)')
-param botAppId string
+@description('Proxy Web App name')
+param proxyWebAppName string = '${namePrefix}-proxy-web'
 
-@secure()
-@description('Bot application password/secret')
-param botAppPassword string
+@description('Azure Front Door profile name')
+param afdProfileName string = '${namePrefix}-afd'
 
-@description('Foundry endpoint, e.g. https://<endpoint>/openai/v1')
-param foundryEndpoint string
+@description('Azure Front Door endpoint name')
+param afdEndpointName string = '${namePrefix}-edge'
 
-@description('Foundry model id/deployment name')
-param foundryModelId string
-
-@secure()
-@description('Foundry API key')
-param foundryApiKey string
+@description('Private base URL of the internal Container App, e.g. http://teamsagent-app-westus2.internal.<env>.<region>.azurecontainerapps.io')
+param privateContainerAppBaseUrl string = 'http://teamsagent-app-westus2'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: '${namePrefix}-law'
@@ -37,102 +32,136 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   }
 }
 
-resource containerEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: '${namePrefix}-cae'
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: appServicePlanName
   location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: listKeys(logAnalytics.id, logAnalytics.apiVersion).primarySharedKey
-      }
-    }
-  }
-}
-
-resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: '${namePrefix}-app'
-  location: location
-  properties: {
-    managedEnvironmentId: containerEnv.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 3978
-      }
-      secrets: [
-        {
-          name: 'bot-app-password'
-          value: botAppPassword
-        }
-        {
-          name: 'foundry-api-key'
-          value: foundryApiKey
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'teams-agent'
-          image: containerImage
-          env: [
-            {
-              name: 'BOT_APP_ID'
-              value: botAppId
-            }
-            {
-              name: 'BOT_APP_PASSWORD'
-              secretRef: 'bot-app-password'
-            }
-            {
-              name: 'FOUNDRY_ENDPOINT'
-              value: foundryEndpoint
-            }
-            {
-              name: 'FOUNDRY_MODEL_ID'
-              value: foundryModelId
-            }
-            {
-              name: 'FOUNDRY_API_KEY'
-              secretRef: 'foundry-api-key'
-            }
-            {
-              name: 'SYSTEM_PROMPT'
-              value: 'You are a helpful assistant in Microsoft Teams.'
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
-    }
-  }
-}
-
-resource botService 'Microsoft.BotService/botServices@2022-09-15' = {
-  name: '${namePrefix}-bot'
-  location: 'global'
-  kind: 'azurebot'
   sku: {
-    name: 'F0'
+    name: 'B1'
+    tier: 'Basic'
+    size: 'B1'
+    family: 'B'
+    capacity: 1
   }
+  kind: 'linux'
   properties: {
-    displayName: '${namePrefix}-bot'
-    endpoint: 'https://${containerApp.properties.configuration.ingress.fqdn}/api/messages'
-    msaAppType: 'MultiTenant'
-    msaAppId: botAppId
-    msaAppTenantId: 'common'
-    publicNetworkAccess: 'Enabled'
+    reserved: true
   }
 }
 
-output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
-output botServiceName string = botService.name
+resource proxyWebApp 'Microsoft.Web/sites@2023-12-01' = {
+  name: proxyWebAppName
+  location: location
+  kind: 'app,linux'
+  properties: {
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'PYTHON|3.11'
+      appCommandLine: 'python src/proxy_app.py'
+      alwaysOn: true
+      appSettings: [
+        {
+          name: 'PROXY_UPSTREAM_BASE_URL'
+          value: privateContainerAppBaseUrl
+        }
+        {
+          name: 'PROXY_TIMEOUT_SECONDS'
+          value: '60'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8000'
+        }
+        {
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'true'
+        }
+      ]
+      ftpsState: 'Disabled'
+      minTlsVersion: '1.2'
+      http20Enabled: true
+    }
+    httpsOnly: true
+  }
+}
+
+resource afdProfile 'Microsoft.Cdn/profiles@2024-05-01-preview' = {
+  name: afdProfileName
+  location: 'global'
+  sku: {
+    name: 'Standard_AzureFrontDoor'
+  }
+}
+
+resource afdEndpoint 'Microsoft.Cdn/profiles/afdEndpoints@2024-05-01-preview' = {
+  parent: afdProfile
+  name: afdEndpointName
+  location: 'global'
+  properties: {
+    enabledState: 'Enabled'
+  }
+}
+
+resource afdOriginGroup 'Microsoft.Cdn/profiles/originGroups@2024-05-01-preview' = {
+  parent: afdProfile
+  name: '${namePrefix}-proxy-og'
+  properties: {
+    loadBalancingSettings: {
+      sampleSize: 4
+      successfulSamplesRequired: 3
+      additionalLatencyInMilliseconds: 50
+    }
+    healthProbeSettings: {
+      probePath: '/healthz'
+      probeRequestType: 'GET'
+      probeProtocol: 'Https'
+      probeIntervalInSeconds: 120
+    }
+    sessionAffinityState: 'Disabled'
+  }
+}
+
+resource afdOrigin 'Microsoft.Cdn/profiles/originGroups/origins@2024-05-01-preview' = {
+  parent: afdOriginGroup
+  name: '${namePrefix}-proxy-origin'
+  properties: {
+    hostName: proxyWebApp.properties.defaultHostName
+    originHostHeader: proxyWebApp.properties.defaultHostName
+    httpPort: 80
+    httpsPort: 443
+    priority: 1
+    weight: 1000
+    enabledState: 'Enabled'
+    enforceCertificateNameCheck: true
+  }
+}
+
+resource afdRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-05-01-preview' = {
+  parent: afdEndpoint
+  name: '${namePrefix}-bot-route'
+  dependsOn: [
+    afdOrigin
+  ]
+  properties: {
+    originGroup: {
+      id: afdOriginGroup.id
+    }
+    supportedProtocols: [
+      'Http'
+      'Https'
+    ]
+    patternsToMatch: [
+      '/api/messages'
+      '/api/messages/*'
+      '/healthz'
+    ]
+    forwardingProtocol: 'HttpsOnly'
+    linkToDefaultDomain: 'Enabled'
+    httpsRedirect: 'Enabled'
+    enabledState: 'Enabled'
+  }
+}
+
+output proxyWebAppHostname string = proxyWebApp.properties.defaultHostName
+output afdHostname string = afdEndpoint.properties.hostName
+output botEndpoint string = 'https://${afdEndpoint.properties.hostName}/api/messages'
+output privateUpstreamConfigured string = privateContainerAppBaseUrl

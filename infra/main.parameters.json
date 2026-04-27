@@ -5,23 +5,20 @@
     "namePrefix": {
       "value": "teamsagent"
     },
-    "containerImage": {
-      "value": "<acr-login-server>/teams-agent:latest"
+    "appServicePlanName": {
+      "value": "teamsagent-asp"
     },
-    "botAppId": {
-      "value": "<bot-app-id>"
+    "proxyWebAppName": {
+      "value": "teamsagent-proxy-web"
     },
-    "botAppPassword": {
-      "value": "<bot-app-password>"
+    "afdProfileName": {
+      "value": "teamsagent-afd"
     },
-    "foundryEndpoint": {
-      "value": "https://<foundry-endpoint>/openai/v1"
+    "afdEndpointName": {
+      "value": "teamsagent-edge"
     },
-    "foundryModelId": {
-      "value": "<model-id>"
-    },
-    "foundryApiKey": {
-      "value": "<foundry-api-key>"
+    "privateContainerAppBaseUrl": {
+      "value": "http://teamsagent-app-westus2"
     }
   }
 }

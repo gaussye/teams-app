@@ -26,8 +26,12 @@ adapter = BotFrameworkHttpAdapter(adapter_settings)
 agent = FoundryAgent(
     endpoint=config.foundry_endpoint,
     model_id=config.foundry_model_id,
-    api_key=config.foundry_api_key,
     system_prompt=config.system_prompt,
+    auth_mode=config.foundry_auth_mode,
+    api_key=config.foundry_api_key,
+    api_version=config.foundry_api_version,
+    entra_scope=config.foundry_entra_scope,
+    managed_identity_client_id=config.foundry_managed_identity_client_id,
 )
 bot = TeamsAgentBot(agent)
 

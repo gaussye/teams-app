@@ -12,10 +12,6 @@
 4. Proxy -> VM 私网 Bot 服务（`http://172.16.250.4:3978`）。
 5. VM 内 Bot/Agent -> Azure AI Foundry（Managed Identity / Entra token）。
 
-说明：
-
-- 当前已从“Proxy 回源 Container App 私网地址”的不稳定路径切回 VM 私网路径。
-- Foundry 认证以 Managed Identity 为主，不再依赖 API Key。
 
 ## 1. 架构图（最新）
 
@@ -151,33 +147,3 @@ python src/app.py
 1. 编辑 `teams/manifest.json`，填入真实 `botId`。
 2. 打包 `manifest.json`、`color.png`、`outline.png` 为 zip。
 3. 在 Teams 上传自定义应用并安装测试。
-
-## 7. 最新测试与验证结果
-
-### 7.1 功能验证
-
-- Teams 实际会话已恢复可用（用户确认“已经通了”）。
-- Proxy `/healthz` 可正常响应。
-- `/api/messages` 链路可完成 Bot 收发与模型回复。
-
-### 7.2 安全验证
-
-- 已复核 AFD-only 回源规则、主站 deny-all、SCM deny-all 全部存在。
-- `x-azure-fdid` 绑定值已与 AFD 实例匹配。
-
-### 7.3 运行与日志验证
-
-- Proxy 日志可见转发目标与上游响应状态。
-- VM 身份与 Foundry RBAC 已完成修复，Managed Identity 路径可用。
-
-## 8. 运行建议（生产）
-
-1. 保持 Bot Service 公开入口，但限制 Proxy 仅允许 AFD 指定实例回源。
-2. 保持 Foundry 使用 MI + RBAC，避免回退到 API Key。
-3. 为 Proxy 与 VM 应用保留健康探针和结构化日志。
-4. 若后续启用 AFD Private Link Origin，可进一步收敛回源面。
-
-## 9. 已知事项
-
-- 目标资源组中当前仅确认 `teamsagent-proxy-web` 已完成并验证规则。
-- `teamsagentafd-proxy-web` 在当前目标资源组查询为 ResourceNotFound，如需同策略加固请先确认其实际资源组/订阅。

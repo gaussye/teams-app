@@ -1,0 +1,26 @@
+Enable succeeded: 
+[stdout]
+active
+ teams-agent-vm.service - Teams Agent VM Service
+     Loaded: loaded (/etc/systemd/system/teams-agent-vm.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2026-04-22 08:08:12 UTC; 1h 44min ago
+   Main PID: 10653 (python)
+      Tasks: 3 (limit: 1009)
+     Memory: 64.1M
+        CPU: 1.587s
+     CGroup: /system.slice/teams-agent-vm.service
+             10653 /opt/teams-agent-vm/.venv/bin/python /opt/teams-agent-vm/src/app.py
+
+Apr 22 08:46:13 vm-private-test python[10653]:         EnvironmentCredential: EnvironmentCredential authentication unavailable. Environment variables are not fully configured.
+Apr 22 08:46:13 vm-private-test python[10653]: Visit https://aka.ms/azsdk/python/identity/environmentcredential/troubleshoot to troubleshoot this issue.
+Apr 22 08:46:13 vm-private-test python[10653]:         ManagedIdentityCredential: ManagedIdentityCredential authentication unavailable. The requested identity has not been assigned to this resource. Error: Unexpected response "{'error': 'invalid_request', 'error_description': 'Identity not found'}"
+Apr 22 08:46:13 vm-private-test python[10653]:         SharedTokenCacheCredential: SharedTokenCacheCredential authentication unavailable. No accounts were found in the cache.
+Apr 22 08:46:13 vm-private-test python[10653]:         AzureCliCredential: Azure CLI not found on path
+Apr 22 08:46:13 vm-private-test python[10653]:         AzurePowerShellCredential: PowerShell is not installed
+Apr 22 08:46:13 vm-private-test python[10653]:         AzureDeveloperCliCredential: Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then,once installed, authenticate to your Azure account using 'azd auth login'.
+Apr 22 08:46:13 vm-private-test python[10653]: To mitigate this issue, please refer to the troubleshooting guidelines here at https://aka.ms/azsdk/python/identity/defaultazurecredential/troubleshoot.
+Apr 22 08:46:14 vm-private-test python[10653]: 2026-04-22 08:46:14,922 INFO aiohttp.access - 172.16.4.30 [22/Apr/2026:08:46:13 +0000] "POST /api/messages HTTP/1.1" 201 155 "-" "python-httpx/0.27.2"
+Apr 22 08:50:05 vm-private-test python[10653]: 2026-04-22 08:50:05,820 INFO aiohttp.access - 172.16.4.30 [22/Apr/2026:08:50:05 +0000] "POST /api/messages HTTP/1.1" 401 179 "-" "python-httpx/0.27.2"
+
+[stderr]
+
