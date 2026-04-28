@@ -104,9 +104,56 @@ sequenceDiagram
 
 这保证了 Proxy 主站仅允许来自指定 AFD 实例的回源访问，且 SCM 管理面默认拒绝。
 
-## 4. 关键配置
+## 4. 生产费用估算
 
-### 4.1 应用配置（Bot/Agent）
+以下估算基于 2026-04-28 通过 Azure Retail Prices API 查询到的 USD 即付即用价格，用于生产环境预算沟通。实际账单会受区域、流量、日志量、折扣、税费和 Azure AI Foundry 模型用量影响。
+
+### 4.1 估算口径
+
+- 区域：`westus2`；AFD 按 `Zone 1`。
+- 计费周期：按 Azure 常用 `730 小时/月` 估算。
+- Web App：`Standard S2 Linux x 1`。
+- Azure Bot Service：生产口径使用 `S1`，当前 Teams Standard Channel 按 `$0 / 1K messages` 估算。
+- VPN：`VpnGw1 Gateway + 1 条 S2S Connection`。
+- AFD 流量假设：`1M requests/月`，`10 GB Data Transfer Out/月`。
+- Log Analytics 假设：`1 GB Basic Logs Data Ingestion/月`。
+- 不包含 VM 费用；不包含 Azure AI Foundry / 模型 token 费用。
+
+### 4.2 Web App S2 算力明细
+
+| 项目 | Standard S2 Linux |
+| --- | ---: |
+| vCPU | 2 vCPU |
+| 内存 | 3.5 GB RAM |
+| 存储 | 50 GB |
+| 单价 | `$0.16/小时` |
+| 月费用 | `$116.80/月` |
+| 年费用 | `$1,401.60/年` |
+
+### 4.3 生产费用明细
+
+| 资源 | SKU / Meter | 单价 | 月费用 | 年费用 |
+| --- | --- | ---: | ---: | ---: |
+| Azure Front Door | Standard Base Fee | `$35/月` | `$35.00` | `$420.00` |
+| Azure Front Door | Standard Requests | `$0.009 / 10K requests` | `$0.90` | `$10.80` |
+| Azure Front Door | Data Transfer Out | `$0.0825 / GB` | `$0.83` | `$9.90` |
+| Web App | Standard S2 Linux x 1 | `$0.16/小时` | `$116.80` | `$1,401.60` |
+| Azure Bot Service | S1 + Teams Standard Channel | `$0 / 1K messages` | `$0.00` | `$0.00` |
+| VPN Gateway | VpnGw1 Gateway | `$0.19/小时` | `$138.70` | `$1,664.40` |
+| VPN Gateway | 1 条 S2S Connection | `$0.015/小时` | `$10.95` | `$131.40` |
+| Log Analytics | Basic Logs Data Ingestion | `$0.50 / GB` | `$0.50` | `$6.00` |
+
+### 4.4 总费用
+
+| 口径 | 月总费用 | 年总费用 |
+| --- | ---: | ---: |
+| 生产版：AFD + Bot S1 + Web App S2 + VpnGw1 + Log Analytics | **约 `$303.68/月`** | **约 `$3,644.10/年`** |
+
+> 如果未来启用 Bot Service Premium Channel，则按 `$0.50 / 1K messages` 另计。Azure AI Foundry / 模型调用费用需要基于模型、输入 token、输出 token 和月调用量单独估算。
+
+## 5. 关键配置
+
+### 5.1 应用配置（Bot/Agent）
 
 见 `.env.example`：
 
@@ -121,7 +168,7 @@ sequenceDiagram
 - `src/agent/foundry_agent.py`：`DefaultAzureCredential` + `AsyncAzureOpenAI`。
 - `src/app.py`：Bot Adapter 与 `/api/messages` 入口。
 
-### 4.2 Proxy 配置
+### 5.2 Proxy 配置
 
 Proxy 关键环境变量：
 
@@ -131,7 +178,7 @@ Proxy 关键环境变量：
 
 代码参考：`src/proxy_app.py`。
 
-## 5. 本地运行
+## 6. 本地运行
 
 ```powershell
 python -m venv .venv
@@ -142,7 +189,7 @@ python src/app.py
 
 本地入口：`http://localhost:3978/api/messages`
 
-## 6. Teams 安装
+## 7. Teams 安装
 
 1. 编辑 `teams/manifest.json`，填入真实 `botId`。
 2. 打包 `manifest.json`、`color.png`、`outline.png` 为 zip。
